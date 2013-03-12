@@ -189,13 +189,13 @@ function acceptance_config_settings() {
 			"array" => $acceptance_poller_frequencies,
         ),
 		"acceptance_remove_empty" => array(
-			'friendly_name' => 'Remove empty graphs',
-			'description' => 'This option will remove graphs for indexes that don\'t exist anymore.',
+			'friendly_name' => 'Remove empty DS',
+			'description' => 'This option will remove data sources for indexes that don\'t exist anymore.',
 			'method' => 'checkbox',
 		),
 		"acceptance_remove_duplicate" => array(
-			'friendly_name' => 'Remove duplicate graphs',
-			'description' => 'This option will find and remove duplicated graphs.',
+			'friendly_name' => 'Remove duplicate DS',
+			'description' => 'This option will find and remove duplicated data sources.',
 			'method' => 'checkbox',
 		),
     );
@@ -234,23 +234,22 @@ function acceptance_poller_bottom() {
 	if ($t != '' && (time() - $t < $poller_interval))
 		return;
 	
-	/*
 	$command_string = trim(read_config_option("path_php_binary"));
 
 	// If its not set, just assume its in the path
-	if (trim($command_string) == '')
+	if (empty($command_string))
 		$command_string = "php";
 	$extra_args = ' -q ' . $config['base_path'] . '/plugins/acceptance/poller.php';
 
-	exec_background($command_string, $extra_args);
-
-	if ($t == "")
-		$sql = "insert into settings values ('discovery_last_poll','" . time() . "')";
+	//exec_background($command_string, $extra_args);
+	
+	if (empty($t))
+		$sql = "INSERT INTO settings VALUES ('acceptance_last_run','" . time() . "')";
 	else
-		$sql = "update settings set value = '" . time() . "' where name = 'discovery_last_poll'";
+		$sql = "UPDATE settings SET value = '" . time() . "' WHERE name = 'acceptance_last_run'";
 	
 	$result = db_execute($sql); 
-	*/
+	
 }
 
 /**
@@ -259,24 +258,92 @@ function acceptance_poller_bottom() {
  * @return array
  */
 function acceptance_run_data_query($data){
+	global $config;	
 	
-	$host_id;
-	$snmp_query_id;
+	include_once($config["base_path"] . '/lib/api_data_source.php');
+	include_once($config["base_path"] . '/lib/api_graph.php');
 	
-	$duplicate_graph_count_sql = "SELECT COUNT(*) AS num, snmp_index, graph_template_id 
-FROM graph_local 
-WHERE host_id=5 AND snmp_query_id=1
-GROUP BY snmp_index, graph_template_id
+	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_DEBUG)
+		cacti_log('Hook run_data_query started.',false,'ACCEPTANCE');
+	
+	$ds_ids = array();
+	$graph_ids = array();
+	
+	
+	// find all duplicated data sources
+	$ds_duplicate_sql = "SELECT COUNT(*) AS num, snmp_index, data_template_id 
+FROM data_local 
+WHERE host_id=".$data['host_id']." AND snmp_query_id=".$data['snmp_query_id']." 
+GROUP BY snmp_index, data_template_id 
+HAVING COUNT(*) > 1 
 ORDER BY num DESC;";
 	
-	$duplicate_graph_id_sql = "SELECT id
-FROM graph_local 
-WHERE host_id=5 AND snmp_query_id=1
-AND graph_template_id=2 AND snmp_index='4'
-OFFSET 1;";
+	foreach(db_fetch_assoc($ds_duplicate_sql) as $ds){
+		
+		// find id of duplicates
+		$duplicate_ds_id_sql = "SELECT data_local.id, name_cache 
+FROM data_local 
+JOIN data_template_data 
+ON( local_data_id=data_local.id ) 
+WHERE host_id=".$data['host_id']." AND snmp_query_id=".$data['snmp_query_id']." 
+AND data_local.data_template_id=".$ds['data_template_id']." AND snmp_index='".$ds['snmp_index']."' 
+ORDER BY id OFFSET 1;";
+		
+		foreach(db_fetch_assoc($duplicate_ds_id_sql) as $dds){
+			$ds_ids[] = $dds['id'];
+			
+			if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
+				cacti_log('Removing duplicate DS['.$dds['id'].'] ('.$dds['name_cache'].')',false,'ACCEPTANCE');
+		}
+	}
 	
-	// same for ds
 	
+	// find all data sources linking to unexisting snmp indexes
+	$ds_empty_sql = "SELECT data_local.id, name_cache 
+FROM data_local 
+LEFT JOIN host_snmp_cache 
+USING(host_id, snmp_query_id, snmp_index) 
+JOIN data_template_data 
+ON( local_data_id=data_local.id ) 
+WHERE host_id=".$data['host_id']." AND snmp_query_id=".$data['snmp_query_id']." 
+GROUP BY data_local.id, name_cache 
+HAVING MAX(oid) IS NULL;";
+	
+	foreach(db_fetch_assoc($ds_empty_sql) as $ds){
+		$ds_ids[] = $ds['id'];
+
+		if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
+			cacti_log('Removing empty DS['.$ds['id'].'] ('.$ds['name_cache'].')',false,'ACCEPTANCE');
+	}
+	
+	
+	// actually delete data sources
+	api_data_source_remove_multi($ds_ids);
+	
+	
+	// cleanup graphs without data source
+	$empty_graphs_sql = "SELECT local_graph_id AS id, title_cache 
+FROM graph_templates_item 
+LEFT JOIN data_template_rrd 
+ON( task_item_id = data_template_rrd.id ) 
+JOIN graph_templates_graph 
+USING(local_graph_id) 
+GROUP BY local_graph_id, title_cache 
+HAVING MAX(local_data_id) IS NULL;";
+	
+	foreach(db_fetch_assoc($empty_graphs_sql) as $local_graph){
+		$graph_ids[] = $local_graph['id'];
+		
+		if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
+			cacti_log('Removing empty Graph['.$local_graph['id'].'] ('.$local_graph['title_cache'].')',false,'ACCEPTANCE');
+	}
+	
+	// delete graphs without data source
+	api_graph_remove_multi($graph_ids);
+	
+	// report statistics
+	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_LOW)
+		cacti_log('Removed '.count($ds_ids).' Data sources and '.count($graph_ids).' graphs.',false,'ACCEPTANCE');
 	
 	return $data;
 }
