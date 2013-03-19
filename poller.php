@@ -16,7 +16,7 @@ ini_set("max_execution_time", "0");
 
 $no_http_headers = true;
 
-include(dirname(__FILE__) . "/../include/global.php");
+include(dirname(__FILE__) . "/../../include/global.php");
 include_once($config["base_path"] . "/lib/snmp.php");
 include_once($config["base_path"] . "/lib/data_query.php");
 
@@ -100,7 +100,7 @@ if (sizeof($data_queries)) {
 		debug("Data query number '" . $i . "' host: '".$data_query["host_id"]."' SNMP Query Id: '".$data_query["snmp_query_id"]."' ending");
 		$i++;
 		// timeout
-		if($t > 0) usleep($t*1000);
+		if($timeout > 0) usleep($timeout*1000);
 	}
 }
 

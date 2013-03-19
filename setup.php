@@ -101,7 +101,7 @@ function acceptance_version() {
 
     return array(
     	'name'		=> 'acceptance',
-		'version'	=> '0.01',
+		'version'	=> '0.02',
 		'longname'	=> 'Approve and deploy devices',
 		'author'	=> 'Thomas Casteleyn',
 		'homepage'	=> 'http://super-visions.com',
@@ -220,18 +220,17 @@ function acceptance_poller_bottom() {
 
 	include_once($config["library_path"] . "/database.php");
 	
-	if (read_config_option("acceptance_poller_interval") == "disabled")
+	$acceptance_poller_interval = read_config_option("acceptance_poller_interval");
+	
+	if($acceptance_poller_interval == "disabled")
 		return;
 
 	$t = read_config_option("acceptance_last_run");
-
-	/* Check for the polling interval, only valid with the Multipoller patch */
-	$poller_interval = read_config_option("poller_interval");
-	if (!isset($poller_interval)) {
-		$poller_interval = 300;
-	}
-
-	if ($t != '' && (time() - $t < $poller_interval))
+	
+	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_DEBUG)
+		cacti_log("Time since last poll: " . (time()-$t) . "s.",false,'ACCEPTANCE');
+	
+	if (!empty($t) && (time() - $t < $acceptance_poller_interval*60 ))
 		return;
 	
 	$command_string = trim(read_config_option("path_php_binary"));
@@ -239,16 +238,45 @@ function acceptance_poller_bottom() {
 	// If its not set, just assume its in the path
 	if (empty($command_string))
 		$command_string = "php";
-	$extra_args = ' -q ' . $config['base_path'] . '/plugins/acceptance/poller.php';
+	
+	// find all data queries
+	$data_queries_sql = "SELECT host_id, snmp_query_id 
+FROM host_snmp_query 
+JOIN host 
+ON( host_id = host.id ) 
+WHERE disabled <> 'on' 
+ORDER BY RANDOM();";
 
-	//exec_background($command_string, $extra_args);
+	$data_queries = db_fetch_assoc($data_queries_sql);
+
+	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
+		cacti_log("There are '" . sizeof($data_queries) . "' data queries to run.",false,'ACCEPTANCE');
 	
-	if (empty($t))
-		$sql = "INSERT INTO settings VALUES ('acceptance_last_run','" . time() . "')";
-	else
-		$sql = "UPDATE settings SET value = '" . time() . "' WHERE name = 'acceptance_last_run'";
+	// start poller_reindex for every data query
+	$i = 1;
+	$host_id = 0;
+	if (sizeof($data_queries)) {
+		foreach ($data_queries as $data_query) {
+			$extra_args = ' -q ' . $config['base_path'] . '/cli/poller_reindex_hosts.php --id='.$data_query["host_id"].' --qid='. $data_query["snmp_query_id"];
+			
+			// larger timeout if the same host is already being repolled by previous
+			if($host_id == $data_query["host_id"])
+				usleep(5000000);
+			else
+				usleep(500000);
+			
+			if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_HIGH)
+				cacti_log("Data query number '" . $i . "' starting. Host[".$data_query["host_id"]."] Query[".$data_query["snmp_query_id"]."]",false,'ACCEPTANCE');
+			
+			// do the actual reindex
+			exec_background($command_string, $extra_args);
+			
+			$i++;
+			$host_id = $data_query["host_id"];
+		}
+	}
 	
-	$result = db_execute($sql); 
+	set_config_option("acceptance_last_run", time());
 	
 }
 
@@ -269,37 +297,45 @@ function acceptance_run_data_query($data){
 	$ds_ids = array();
 	$graph_ids = array();
 	
+	// log message!
+	if(empty($data)) return;
 	
-	// find all duplicated data sources
-	$ds_duplicate_sql = "SELECT COUNT(*) AS num, snmp_index, data_template_id 
+	
+	if(read_config_option('acceptance_remove_duplicate') === 'on'){
+		
+		// find all duplicated data sources
+		$ds_duplicate_sql = "SELECT COUNT(*) AS num, snmp_index, data_template_id 
 FROM data_local 
 WHERE host_id=".$data['host_id']." AND snmp_query_id=".$data['snmp_query_id']." 
 GROUP BY snmp_index, data_template_id 
 HAVING COUNT(*) > 1 
 ORDER BY num DESC;";
-	
-	foreach(db_fetch_assoc($ds_duplicate_sql) as $ds){
 		
-		// find id of duplicates
-		$duplicate_ds_id_sql = "SELECT data_local.id, name_cache 
+		foreach(db_fetch_assoc($ds_duplicate_sql) as $ds){
+
+			// find id of duplicates
+			$duplicate_ds_id_sql = "SELECT data_local.id, name_cache 
 FROM data_local 
 JOIN data_template_data 
 ON( local_data_id=data_local.id ) 
 WHERE host_id=".$data['host_id']." AND snmp_query_id=".$data['snmp_query_id']." 
 AND data_local.data_template_id=".$ds['data_template_id']." AND snmp_index='".$ds['snmp_index']."' 
 ORDER BY id OFFSET 1;";
-		
-		foreach(db_fetch_assoc($duplicate_ds_id_sql) as $dds){
-			$ds_ids[] = $dds['id'];
-			
-			if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
-				cacti_log('Removing duplicate DS['.$dds['id'].'] ('.$dds['name_cache'].')',false,'ACCEPTANCE');
+
+			foreach(db_fetch_assoc($duplicate_ds_id_sql) as $dds){
+				$ds_ids[] = $dds['id'];
+
+				if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
+					cacti_log('Removing duplicate DS['.$dds['id'].'] ('.$dds['name_cache'].')',false,'ACCEPTANCE');
+			}
 		}
 	}
 	
 	
-	// find all data sources linking to unexisting snmp indexes
-	$ds_empty_sql = "SELECT data_local.id, name_cache 
+	if(read_config_option('acceptance_remove_empty') === 'on'){
+		
+		// find all data sources linking to unexisting snmp indexes
+		$ds_empty_sql = "SELECT data_local.id, name_cache 
 FROM data_local 
 LEFT JOIN host_snmp_cache 
 USING(host_id, snmp_query_id, snmp_index) 
@@ -308,12 +344,13 @@ ON( local_data_id=data_local.id )
 WHERE host_id=".$data['host_id']." AND snmp_query_id=".$data['snmp_query_id']." 
 GROUP BY data_local.id, name_cache 
 HAVING MAX(oid) IS NULL;";
-	
-	foreach(db_fetch_assoc($ds_empty_sql) as $ds){
-		$ds_ids[] = $ds['id'];
+		
+		foreach(db_fetch_assoc($ds_empty_sql) as $ds){
+			$ds_ids[] = $ds['id'];
 
-		if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
-			cacti_log('Removing empty DS['.$ds['id'].'] ('.$ds['name_cache'].')',false,'ACCEPTANCE');
+			if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
+				cacti_log('Removing empty DS['.$ds['id'].'] ('.$ds['name_cache'].')',false,'ACCEPTANCE');
+		}
 	}
 	
 	
@@ -342,7 +379,7 @@ HAVING MAX(local_data_id) IS NULL;";
 	api_graph_remove_multi($graph_ids);
 	
 	// report statistics
-	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_LOW)
+	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_LOW && (count($ds_ids) > 0 or count($graph_ids) > 0 ))
 		cacti_log('Removed '.count($ds_ids).' Data sources and '.count($graph_ids).' graphs.',false,'ACCEPTANCE');
 	
 	return $data;
