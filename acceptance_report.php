@@ -63,6 +63,8 @@ html_start_box('<strong>Filters</strong>', '100%', $colors['header'], '3', 'cent
 
 html_end_box();
 
+/* print checkbox form for validation */
+print '<form name="chk" method="post" action="acceptance_report.php">';
 
 // show devices
 html_start_box('', '100%', $colors['header'], '3', 'center', '');
@@ -132,7 +134,7 @@ if (sizeof($hosts) > 0) {
 		form_selectable_cell(get_colored_device_status(($host['disabled'] == 'on'), $host['status']), $host['id']);
 		form_selectable_cell(htmlspecialchars($host['hostname']), $host['id']);
 		form_selectable_cell(htmlspecialchars($host['host_template']), $host['id']);
-		form_checkbox_cell(htmlspecialchars($host['hostname']), $host['id']);
+		form_checkbox_cell($host['description'], $host['id']);
 		form_end_row();
 	}
 
@@ -144,6 +146,7 @@ if (sizeof($hosts) > 0) {
 
 html_end_box();
 
+print '</form>';
 
 include_once($config['include_path'] . '/bottom_footer.php');
 
