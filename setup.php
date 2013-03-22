@@ -18,6 +18,9 @@
 # define a debugging level specific to ACCEPTANCE
 define('ACCEPTANCE_DEBUG', read_config_option("acceptance_log_verbosity"), true);
 
+# define number of pages to display in lists
+define('ACCEPTANCE_MAX_DISPLAY_PAGES', 21);
+
 /**
  * plugin_acceptance_install    - Initialize the plugin and setup all hooks
  */
@@ -32,7 +35,7 @@ function plugin_acceptance_install() {
     api_plugin_register_hook('acceptance', 'config_settings', 'acceptance_config_settings', 'setup.php');
 
     # provide navigation texts
-    #api_plugin_register_hook('acceptance', 'draw_navigation_text', 'acceptance_draw_navigation_text', 'setup.php');
+    api_plugin_register_hook('acceptance', 'draw_navigation_text', 'acceptance_draw_navigation_text', 'setup.php');
 	
 	# show Accepance tab
 	#api_plugin_register_hook('acceptance', 'top_header_tabs', 'acceptance_show_tab', 'setup.php');
@@ -44,8 +47,8 @@ function plugin_acceptance_install() {
     api_plugin_register_hook('acceptance', 'run_data_query', 'acceptance_run_data_query', 'setup.php');
 
     # register all permissions for this plugin
-    api_plugin_register_realm('acceptance', 'report.php', 'Plugin -> Acceptance: Approve Devices', 1);
-    api_plugin_register_realm('acceptance', 'config.php', 'Plugin -> Acceptance: Configure', 1);
+    api_plugin_register_realm('acceptance', 'acceptance_report.php', 'Plugin -> Acceptance: Approve Devices', 1);
+    api_plugin_register_realm('acceptance', 'acceptance_config.php', 'Plugin -> Acceptance: Configure', 1);
 
 }
 
@@ -116,17 +119,9 @@ function acceptance_version() {
  * returns array                - updated navigation texts
  */
 function acceptance_draw_navigation_text($nav) {
-    // Displayed navigation text under the blue tabs of Cacti
-	#$nav["acceptance_graph_rules.php:"]             = array("title" => "Graph Rules", "mapping" => "index.php:", "url" => "acceptance_graph_rules.php", "level" => "1");
-    #$nav["acceptance_graph_rules.php:edit"]         = array("title" => "(Edit)", "mapping" => "index.php:,acceptance_graph_rules.php:", "url" => "", "level" => "2");
-    #$nav["acceptance_graph_rules.php:actions"]         = array("title" => "Actions", "mapping" => "index.php:,acceptance_graph_rules.php:", "url" => "", "level" => "2");
-    #$nav["acceptance_graph_rules.php:item_edit"]    = array("title" => "Graph Rule Items", "mapping" => "index.php:,acceptance_graph_rules.php:,acceptance_graph_rules.php:edit", "url" => "", "level" => "3");
-
-    #$nav["acceptance_tree_rules.php:"]                 = array("title" => "Tree Rules", "mapping" => "index.php:", "url" => "acceptance_tree_rules.php", "level" => "1");
-    #$nav["acceptance_tree_rules.php:edit"]             = array("title" => "(Edit)", "mapping" => "index.php:,acceptance_tree_rules.php:", "url" => "", "level" => "2");
-    #$nav["acceptance_tree_rules.php:actions"]         = array("title" => "Actions", "mapping" => "index.php:,acceptance_tree_rules.php:", "url" => "", "level" => "2");
-    #$nav["acceptance_tree_rules.php:item_edit"]        = array("title" => "Tree Rule Items", "mapping" => "index.php:,acceptance_tree_rules.php:,acceptance_tree_rules.php:edit", "url" => "", "level" => "3");
-
+	// Displayed navigation text under the blue tabs of Cacti
+	$nav["acceptance_report.php:"]	= array("title" => "Acceptance", "mapping" => "index.php:", "url" => "acceptance_report.php", "level" => "1");
+	
     return $nav;
 }
 
