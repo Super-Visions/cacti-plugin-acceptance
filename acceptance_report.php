@@ -17,30 +17,6 @@ include_once($config['base_path'] . '/plugins/acceptance/setup.php');
 include_once($config['include_path'] . '/top_graph_header.php');
 
 
-// debug values
-$hosts = array(
-	array(
-		'id'			=> 1,
-		'description'	=> 'localhost',
-		'hostname'		=> '127.0.0.1',
-		'graphs'		=> 25,
-		'dss'			=> 45,
-		'disabled'		=> 'off',
-		'status'		=> 3,
-		'host_template'	=> 'Local Linux Machine',
-	),
-	array(
-		'id'			=> 5,
-		'description'	=> 'localhost2',
-		'hostname'		=> '127.0.0.2',
-		'graphs'		=> 35,
-		'dss'			=> 45,
-		'disabled'		=> 'off',
-		'status'		=> 2,
-		'host_template'	=> 'Local Linux Machine',
-	),
-);
-
 $page = 1;
 $per_page = 40;
 $tree = (int) read_config_option('acceptance_tree');
@@ -49,6 +25,19 @@ $acceptance_actions = array(
 	'ignore' => 'Ignore',
 	'delete' => 'Delete',
 );
+
+$host_sql = sprintf("SELECT host.id, description, hostname, status, host_template.name AS host_template, 
+	(SELECT COUNT(*) FROM data_local WHERE host_id=host.id) AS dss, 
+	(SELECT COUNT(*) FROM graph_local WHERE host_id=host.id) AS graphs 
+FROM host 
+JOIN host_template 
+ON(host.host_template_id = host_template.id) 
+JOIN graph_tree_items 
+ON(host.id = graph_tree_items.host_id) 
+WHERE 
+	graph_tree_id = %d
+	AND host.disabled <> 'on'", $tree);
+$hosts = db_fetch_assoc($host_sql);
 $total_rows = count($hosts);
 
 
@@ -115,8 +104,8 @@ print $nav;
 $display_text = array(
 	'description' => array('Description', 'ASC'),
 	'id' => array('ID', 'ASC'),
-	'nosort1' => array('Graphs', 'ASC'),
-	'nosort2' => array('Data Sources', 'ASC'),
+	'graphs' => array('Graphs', 'ASC'),
+	'dds' => array('Data Sources', 'ASC'),
 	'status' => array('Status', 'ASC'),
 	'hostname' => array('Hostname', 'ASC'),
 	'host_template' => array('Template', 'ASC'),
@@ -127,9 +116,21 @@ $i = 0;
 if ($total_rows > 0) {
 	foreach ($hosts as $host) {
 		form_alternate_row_color($colors['alternate'], $colors['light'], $i, 'line' . $host['id']); $i++;
-		if (api_user_realm_auth('host.php'))
-			form_selectable_cell('<a class="linkEditMain" href="'. htmlspecialchars($config['url_path'].'host.php?action=edit&id=' . $host['id']) . '">' . htmlspecialchars($host['description']) . '</a>', $host['id'], 250);
-		else form_selectable_cell(htmlspecialchars($host['description']), $host['id'], 250);
+		// host description
+		$description = '';
+		if (api_user_realm_auth('host.php')){
+			$description .= '<a href="'. htmlspecialchars($config['url_path'].'host.php?action=edit&id=' . $host['id']) . '">';
+			$description .= '<img src="'.$config['url_path'].'plugins/thold/images/edit_object.png" border="0" alt="Edit Host" title="Edit Host">';
+			$description .= '</a> ';
+		}
+		if(api_user_realm_auth('graph_view.php')){
+			$description .= '<a href="'.htmlspecialchars($config['url_path'].'graph_view.php?action=preview&host_id='.$host['id'].'&graph_template_id=0&filter=&page=1').'">';
+			$description .= '<img src="'.$config['url_path'].'plugins/thold/images/view_graphs.gif" border="0" alt="View Graphs" title="View Graphs" />';
+			$description .= '</a> ';
+		}
+		$description .= htmlspecialchars($host['description']);
+		form_selectable_cell($description, $host['id'], 250);
+				
 		form_selectable_cell($host['id'], $host['id']);
 		if(api_user_realm_auth('graph.php'))
 			form_selectable_cell('<a href="'.htmlspecialchars($config['url_path'].'graphs.php?host_id='.$host['id'].'&filter=&template_id=-1&page=1').'">'.$host['graphs'].'</a>', $host['id']);
@@ -137,7 +138,7 @@ if ($total_rows > 0) {
 		if(api_user_realm_auth('graph.php'))
 			form_selectable_cell('<a href="'.htmlspecialchars($config['url_path'].'data_sources.php?host_id='.$host['id'].'&filter=&template_id=-1&method_id=-1&page=1').'">'.$host['dss'], $host['id']);
 		else form_selectable_cell($host['dss'], $host['id']);
-		form_selectable_cell(get_colored_device_status(($host['disabled'] == 'on'), $host['status']), $host['id']);
+		form_selectable_cell(get_colored_device_status(false, $host['status']), $host['id']);
 		form_selectable_cell(htmlspecialchars($host['hostname']), $host['id']);
 		form_selectable_cell(htmlspecialchars($host['host_template']), $host['id']);
 		form_checkbox_cell($host['description'], $host['id']);
