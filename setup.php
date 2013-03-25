@@ -129,9 +129,8 @@ function acceptance_draw_navigation_text($nav) {
  * acceptance_config_arrays    - Setup arrays needed for this plugin
  */
 function acceptance_config_arrays() {
-    # globals changed
-    global $menu, $acceptance_poller_frequencies;
 	
+	global $acceptance_poller_frequencies;
 	$acceptance_poller_frequencies = array(
 		"disabled" => "Disabled",
 		"60" => "Every 1 Hour",
@@ -145,10 +144,14 @@ function acceptance_config_arrays() {
 		"20160" => "Every 2 Weeks",
 		"40320" => "Every 4 Weeks"
 		);
-
-    # menu titles
-    #$menu["templates"]["items"]['plugins/acceptance/report.php'] = "Acceptance Report";
-    #$menu["templates"]["items"]['plugins/acceptance/config.php'] = "Deployment rules";
+	
+	global $trees;
+	$trees =  array_rekey(db_fetch_assoc('SELECT id, name FROM graph_tree ORDER BY name;'),'id','name');
+	
+	#global $menu;
+	# menu titles
+	#$menu["templates"]["items"]['plugins/acceptance/report.php'] = "Acceptance Report";
+	#$menu["templates"]["items"]['plugins/acceptance/config.php'] = "Deployment rules";
 
 }
 
@@ -156,7 +159,10 @@ function acceptance_config_arrays() {
  * acceptance_config_settings    - configuration settings for this plugin
  */
 function acceptance_config_settings() {
-    global $tabs, $settings, $logfile_verbosity, $acceptance_poller_frequencies;
+    global $tabs, $settings;
+	global $logfile_verbosity;
+	global $acceptance_poller_frequencies;
+	global $trees;
 
     /* check for an upgrade */
     plugin_acceptance_check_config();
@@ -168,6 +174,13 @@ function acceptance_config_settings() {
         "acceptance_header" => array(
             "friendly_name" => "Acceptance",
             "method" => "spacer",
+        ),
+		"acceptance_tree" => array(
+            "friendly_name" => "Acceptance Tree",
+            "description" => "Select the tree with hosts to accept.",
+            "method" => "drop_array",
+            "default" => 1,
+            "array" => $trees,
         ),
         "acceptance_log_verbosity" => array(
             "friendly_name" => "Logging Level for Acceptance",

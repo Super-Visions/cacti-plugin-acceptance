@@ -43,6 +43,12 @@ $hosts = array(
 
 $page = 1;
 $per_page = 40;
+$tree = (int) read_config_option('acceptance_tree');
+$acceptance_actions = array(
+	'accept' => 'Accept',
+	'ignore' => 'Ignore',
+	'delete' => 'Delete',
+);
 $total_rows = count($hosts);
 
 
@@ -118,7 +124,7 @@ $display_text = array(
 html_header_sort_checkbox($display_text, get_request_var_request('sort_column'), get_request_var_request('sort_direction'), false);
 
 $i = 0;
-if (sizeof($hosts) > 0) {
+if ($total_rows > 0) {
 	foreach ($hosts as $host) {
 		form_alternate_row_color($colors['alternate'], $colors['light'], $i, 'line' . $host['id']); $i++;
 		if (api_user_realm_auth('host.php'))
@@ -144,7 +150,10 @@ if (sizeof($hosts) > 0) {
 	print '<tr><td><em>No Hosts</em></td></tr>';
 }
 
-html_end_box();
+html_end_box(false);
+
+/* draw the dropdown containing a list of available actions for this form */
+draw_actions_dropdown($acceptance_actions);
 
 print '</form>';
 
