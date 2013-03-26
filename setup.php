@@ -25,6 +25,7 @@ define('ACCEPTANCE_MAX_DISPLAY_PAGES', 21);
  * plugin_acceptance_install    - Initialize the plugin and setup all hooks
  */
 function plugin_acceptance_install() {
+	global $database_idquote;
 
 	#api_plugin_register_hook('PLUGINNAME', 'HOOKNAME', 'CALLBACKFUNCTION', 'FILENAME');
 	#api_plugin_register_realm('PLUGINNAME', 'FILENAMETORESTRICT', 'DISPLAYTEXT', 1);
@@ -49,62 +50,22 @@ function plugin_acceptance_install() {
     # register all permissions for this plugin
     api_plugin_register_realm('acceptance', 'acceptance_report.php', 'Plugin -> Acceptance: Approve Devices', 1);
     api_plugin_register_realm('acceptance', 'acceptance_config.php', 'Plugin -> Acceptance: Configure', 1);
+	
+	# alter host_snmp_query table
+	if(0 == db_fetch_cell("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'host_snmp_query' AND column_name = 'reindex_time';")){
+		db_execute('ALTER TABLE host_snmp_query ADD reindex_time timestamp DEFAULT current_timestamp;');
+		db_execute("INSERT INTO plugin_db_changes (plugin, ${database_idquote}table$database_idquote, ${database_idquote}column$database_idquote, method) VALUES ('acceptance', 'host_snmp_query', 'reindex_time', 'addcolumn');");
+	}
 
-}
-
-/**
- * plugin_acceptance_uninstall    - Do any extra Uninstall stuff here
- */
-function plugin_acceptance_uninstall() {
-    // Do any extra Uninstall stuff here
-}
-
-/**
- * plugin_acceptance_check_config    - Here we will check to ensure everything is configured
- */
-function plugin_acceptance_check_config() {
-    // Here we will check to ensure everything is configured
-    acceptance_check_upgrade();
-    return true;
-}
-
-/**
- * plugin_acceptance_upgrade    - Here we will upgrade to the newest version
- */
-function plugin_acceptance_upgrade() {
-    // Here we will upgrade to the newest version
-    acceptance_check_upgrade();
-    return true;
 }
 
 /**
  * plugin_acceptance_version    - define version information
  */
 function plugin_acceptance_version() {
-    return acceptance_version();
-}
-
-/**
- * acceptance_check_upgrade        - perform version upgrade
- */
-function acceptance_check_upgrade() {
-}
-
-/**
- * acceptance_check_dependencies    - check plugin dependencies
- */
-function acceptance_check_dependencies() {
-    return true;
-}
-
-/**
- * acceptance_version    - Version information (used by update plugin)
- */
-function acceptance_version() {
-
     return array(
     	'name'		=> 'acceptance',
-		'version'	=> '0.02',
+		'version'	=> '0.03',
 		'longname'	=> 'Approve and deploy devices',
 		'author'	=> 'Thomas Casteleyn',
 		'homepage'	=> 'http://super-visions.com',
@@ -164,9 +125,6 @@ function acceptance_config_settings() {
 	global $acceptance_poller_frequencies;
 	global $trees;
 
-    /* check for an upgrade */
-    plugin_acceptance_check_config();
-
     if (isset($_SERVER['PHP_SELF']) && basename($_SERVER['PHP_SELF']) != 'settings.php')
         return;
 
@@ -190,8 +148,8 @@ function acceptance_config_settings() {
             "array" => $logfile_verbosity,
         ),
         "acceptance_poller_interval" => array(
-			"friendly_name" => "Poller Frequency",
-			"description" => "Choose how often to reload data queries.",
+			"friendly_name" => "Poller Reindex Frequency",
+			"description" => "Choose how often to reload data queries that are normally only updated when uptime changes.",
 			"method" => "drop_array",
 			"default" => "disabled",
 			"array" => $acceptance_poller_frequencies,
@@ -220,7 +178,7 @@ function acceptance_config_settings() {
         $settings["misc"] = $temp;
 }
 
-/*
+/**
  * 
  */
 function acceptance_poller_bottom() {
@@ -231,14 +189,6 @@ function acceptance_poller_bottom() {
 	$acceptance_poller_interval = read_config_option("acceptance_poller_interval");
 	
 	if($acceptance_poller_interval == "disabled")
-		return;
-
-	$t = read_config_option("acceptance_last_run");
-	
-	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_DEBUG)
-		cacti_log("Time since last poll: " . (time()-$t) . "s.",false,'ACCEPTANCE');
-	
-	if (!empty($t) && (time() - $t < $acceptance_poller_interval*60 ))
 		return;
 	
 	$command_string = trim(read_config_option("path_php_binary"));
@@ -253,6 +203,8 @@ FROM host_snmp_query
 JOIN host 
 ON( host_id = host.id ) 
 WHERE disabled <> 'on' 
+AND reindex_method = ".DATA_QUERY_AUTOINDEX_BACKWARDS_UPTIME." 
+AND reindex_time < NOW() - INTERVAL '".$acceptance_poller_interval." minutes' 
 ORDER BY RANDOM();";
 
 	$data_queries = db_fetch_assoc($data_queries_sql);
@@ -282,10 +234,7 @@ ORDER BY RANDOM();";
 			$i++;
 			$host_id = $data_query["host_id"];
 		}
-	}
-	
-	set_config_option("acceptance_last_run", time());
-	
+	}	
 }
 
 /**
@@ -308,6 +257,11 @@ function acceptance_run_data_query($data){
 	// log message!
 	if(empty($data)) return;
 	
+	// save last reindex time
+	$update_reindex_time_sql = "UPDATE host_snmp_query 
+SET reindex_time = current_timestamp 
+WHERE host_id=".$data['host_id']." AND snmp_query_id=".$data['snmp_query_id'].";";
+	db_execute($update_reindex_time_sql);
 	
 	if(read_config_option('acceptance_remove_duplicate') === 'on'){
 		
