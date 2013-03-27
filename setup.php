@@ -63,6 +63,13 @@ function plugin_acceptance_install() {
  * plugin_acceptance_version    - define version information
  */
 function plugin_acceptance_version() {
+	return acceptance_version();
+}
+
+/**
+ * acceptance_version    - Version information (used by update plugin)
+ */
+function acceptance_version() {
     return array(
     	'name'		=> 'acceptance',
 		'version'	=> '0.03',
@@ -191,12 +198,6 @@ function acceptance_poller_bottom() {
 	if($acceptance_poller_interval == "disabled")
 		return;
 	
-	$command_string = trim(read_config_option("path_php_binary"));
-
-	// If its not set, just assume its in the path
-	if (empty($command_string))
-		$command_string = "php";
-	
 	// find all data queries
 	$data_queries_sql = "SELECT host_id, snmp_query_id 
 FROM host_snmp_query 
@@ -217,19 +218,16 @@ ORDER BY RANDOM();";
 	$host_id = 0;
 	if (sizeof($data_queries)) {
 		foreach ($data_queries as $data_query) {
-			$extra_args = ' -q ' . $config['base_path'] . '/cli/poller_reindex_hosts.php --id='.$data_query["host_id"].' --qid='. $data_query["snmp_query_id"];
 			
 			// larger timeout if the same host is already being repolled by previous
 			if($host_id == $data_query["host_id"])
-				usleep(5000000);
-			else
 				usleep(500000);
 			
 			if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_HIGH)
 				cacti_log("Data query number '" . $i . "' starting. Host[".$data_query["host_id"]."] Query[".$data_query["snmp_query_id"]."]",false,'ACCEPTANCE');
 			
 			// do the actual reindex
-			exec_background($command_string, $extra_args);
+			run_data_query($data_query['host_id'], $data_query['snmp_query_id']);
 			
 			$i++;
 			$host_id = $data_query["host_id"];
