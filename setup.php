@@ -72,7 +72,7 @@ function plugin_acceptance_version() {
 function acceptance_version() {
     return array(
     	'name'		=> 'acceptance',
-		'version'	=> '0.03',
+		'version'	=> '0.04',
 		'longname'	=> 'Approve and deploy devices',
 		'author'	=> 'Thomas Casteleyn',
 		'homepage'	=> 'http://super-visions.com',
@@ -193,46 +193,57 @@ function acceptance_poller_bottom() {
 
 	include_once($config["library_path"] . "/database.php");
 	
+	$poller_interval = read_config_option("poller_interval");
 	$acceptance_poller_interval = read_config_option("acceptance_poller_interval");
+	$start_time = microtime(true);
 	
 	if($acceptance_poller_interval == "disabled")
 		return;
 	
 	// find all data queries
-	$data_queries_sql = "SELECT host_id, snmp_query_id 
+	$data_queries_sql = sprintf("SELECT host_id, snmp_query_id 
 FROM host_snmp_query 
 JOIN host 
 ON( host_id = host.id ) 
 WHERE disabled <> 'on' 
-AND reindex_method = ".DATA_QUERY_AUTOINDEX_BACKWARDS_UPTIME." 
-AND reindex_time < NOW() - INTERVAL '".$acceptance_poller_interval." minutes' 
-ORDER BY RANDOM();";
-
-	$data_queries = db_fetch_assoc($data_queries_sql);
-
-	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
-		cacti_log("There are '" . sizeof($data_queries) . "' data queries to run.",false,'ACCEPTANCE');
+AND reindex_method = %d 
+AND reindex_time < NOW() - INTERVAL '%d minutes' 
+ORDER BY reindex_time 
+LIMIT 1;", DATA_QUERY_AUTOINDEX_BACKWARDS_UPTIME, $acceptance_poller_interval );
 	
 	// start poller_reindex for every data query
-	$i = 1;
+	$i = 0;
 	$host_id = 0;
-	if (sizeof($data_queries)) {
-		foreach ($data_queries as $data_query) {
-			
-			// larger timeout if the same host is already being repolled by previous
-			if($host_id == $data_query["host_id"])
-				usleep(500000);
-			
-			if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_HIGH)
-				cacti_log("Data query number '" . $i . "' starting. Host[".$data_query["host_id"]."] Query[".$data_query["snmp_query_id"]."]",false,'ACCEPTANCE');
-			
-			// do the actual reindex
-			run_data_query($data_query['host_id'], $data_query['snmp_query_id']);
-			
-			$i++;
+	while($data_query = db_fetch_row($data_queries_sql)){
+		$i++;
+
+		// some timeout if the same host is already being repolled by previous
+		if($host_id == $data_query['host_id'])
+			usleep(500000);
+		else
 			$host_id = $data_query["host_id"];
-		}
-	}	
+
+		if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
+			cacti_log("Data query number '" . $i . "' starting. Host[".$data_query["host_id"]."] Query[".$data_query["snmp_query_id"]."]",false,'ACCEPTANCE');
+
+		//update reindex_time to be sure its not get picked up also by another poller process in case of problems
+		$update_reindex_time_sql = sprintf("UPDATE host_snmp_query 
+SET reindex_time = NOW() - INTERVAL '%d minutes' + INTERVAL '%d seconds' 
+WHERE host_id=%d AND snmp_query_id=%d;",
+			$acceptance_poller_interval, 2*$poller_interval,
+			$data_query['host_id'], $data_query['snmp_query_id']
+		);
+		db_execute($update_reindex_time_sql);
+
+		// do the actual reindex
+		run_data_query($data_query['host_id'], $data_query['snmp_query_id']);
+		
+		// stop if using more time than the poller interval
+		if(microtime(true) - $start_time > $poller_interval*.8) break;
+	}
+	
+	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_LOW && $i > 0)
+		cacti_log('STATS: Reindexed ' . $i . ' data queries in '.(microtime(true) - $start_time).'s',false,'ACCEPTANCE');	
 }
 
 /**
@@ -247,7 +258,7 @@ function acceptance_run_data_query($data){
 	include_once($config["base_path"] . '/lib/api_graph.php');
 	
 	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_DEBUG)
-		cacti_log('Hook run_data_query started.',false,'ACCEPTANCE');
+		cacti_log('DEBUG: Hook run_data_query started.',false,'ACCEPTANCE');
 	
 	$ds_ids = array();
 	$graph_ids = array();
@@ -340,7 +351,7 @@ HAVING MAX(local_data_id) IS NULL;";
 	
 	// report statistics
 	if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_LOW && (count($ds_ids) > 0 or count($graph_ids) > 0 ))
-		cacti_log('Removed '.count($ds_ids).' Data sources and '.count($graph_ids).' graphs.',false,'ACCEPTANCE');
+		cacti_log('STATS: Removed '.count($ds_ids).' Data sources and '.count($graph_ids).' graphs.',false,'ACCEPTANCE');
 	
 	return $data;
 }
