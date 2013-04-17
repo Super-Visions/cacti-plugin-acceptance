@@ -42,7 +42,21 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && $_POST['action'] == 'actions'){
 		switch ($_POST['drp_action']) {
 			case 'accept':
 				
-				// push configuration
+				$devices_sql = sprintf("SELECT host_template.name, description, 
+	hostname, snmp_community, snmp_version, snmp_username, snmp_password, 
+	snmp_port, snmp_timeout, disabled, availability_method, ping_method, 
+	ping_port, ping_timeout, ping_retries, notes, snmp_auth_protocol, 
+	snmp_priv_passphrase, snmp_priv_protocol, snmp_context, max_oids 
+FROM host 
+LEFT JOIN host_template 
+ON(host_template_id = host_template.id) 
+WHERE host.id IN(%s);", $_POST['selected_items']);
+				
+				$devices = db_fetch_assoc($devices_sql);
+				
+				foreach($devices as $device){
+					//fputcsv($file, $device);
+				}
 				
 			case 'ignore':
 				
