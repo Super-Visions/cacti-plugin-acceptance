@@ -72,7 +72,7 @@ function plugin_acceptance_version() {
 function acceptance_version() {
     return array(
     	'name'		=> 'acceptance',
-		'version'	=> '0.04',
+		'version'	=> '0.05',
 		'longname'	=> 'Approve and deploy devices',
 		'author'	=> 'Thomas Casteleyn',
 		'homepage'	=> 'http://super-visions.com',
@@ -88,7 +88,8 @@ function acceptance_version() {
  */
 function acceptance_draw_navigation_text($nav) {
 	// Displayed navigation text under the blue tabs of Cacti
-	$nav["acceptance_report.php:"]	= array("title" => "Acceptance", "mapping" => "index.php:", "url" => "acceptance_report.php", "level" => "1");
+	$nav["acceptance_report.php:"]	= array("title" => "Acceptance Report", "mapping" => "index.php:", "url" => "plugins/acceptance/acceptance_report.php", "level" => "1");
+	$nav["acceptance_report.php:actions"]	= array("title" => "Acceptance Confirm", "mapping" => "index.php:", "level" => "1");
 	
     return $nav;
 }
@@ -224,7 +225,7 @@ LIMIT 1;", DATA_QUERY_AUTOINDEX_BACKWARDS_UPTIME, $acceptance_poller_interval );
 			$host_id = $data_query["host_id"];
 
 		if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_MEDIUM)
-			cacti_log("Data query number '" . $i . "' starting. Host[".$data_query["host_id"]."] Query[".$data_query["snmp_query_id"]."]",false,'ACCEPTANCE');
+			cacti_log("Data query number " . $i . " starting. Host[".$data_query["host_id"]."] Query[".$data_query["snmp_query_id"]."]",false,'ACCEPTANCE');
 
 		//update reindex_time to be sure its not get picked up also by another poller process in case of problems
 		$update_reindex_time_sql = sprintf("UPDATE host_snmp_query 
