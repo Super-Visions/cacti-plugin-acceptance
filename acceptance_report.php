@@ -185,7 +185,7 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && $_POST['action'] == 'actions'){
 	(SELECT COUNT(*) FROM data_local WHERE host_id=host.id) AS dss, 
 	(SELECT COUNT(*) FROM graph_local WHERE host_id=host.id) AS graphs 
 FROM host 
-JOIN host_template 
+LEFT JOIN host_template 
 ON(host.host_template_id = host_template.id) 
 JOIN graph_tree_items 
 ON(host.id = graph_tree_items.host_id) 
