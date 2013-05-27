@@ -21,6 +21,9 @@ define('ACCEPTANCE_DEBUG', read_config_option("acceptance_log_verbosity"), true)
 # define number of pages to display in lists
 define('ACCEPTANCE_MAX_DISPLAY_PAGES', 21);
 
+# non-gw-cacti compatibility
+if(empty($database_idquote)) $database_idquote = '`';
+
 /**
  * plugin_acceptance_install    - Initialize the plugin and setup all hooks
  */
@@ -204,7 +207,7 @@ function acceptance_config_settings() {
  * 
  */
 function acceptance_poller_bottom() {
-	global $config;
+	global $config, $database_type;
 
 	include_once($config["library_path"] . "/database.php");
 	
@@ -216,7 +219,16 @@ function acceptance_poller_bottom() {
 		return;
 	
 	// find all data queries
-	$data_queries_sql = sprintf("SELECT host_id, snmp_query_id 
+	if ($database_type === "mysql") $data_queries_sql = sprintf("SELECT host_id, snmp_query_id 
+FROM host_snmp_query 
+JOIN host 
+ON( host_id = host.id ) 
+WHERE disabled <> 'on' 
+AND reindex_method = %d 
+AND reindex_time < NOW() - INTERVAL %d MINUTE 
+ORDER BY reindex_time 
+LIMIT 1;", DATA_QUERY_AUTOINDEX_BACKWARDS_UPTIME, $acceptance_poller_interval );
+	else $data_queries_sql = sprintf("SELECT host_id, snmp_query_id 
 FROM host_snmp_query 
 JOIN host 
 ON( host_id = host.id ) 
@@ -242,7 +254,13 @@ LIMIT 1;", DATA_QUERY_AUTOINDEX_BACKWARDS_UPTIME, $acceptance_poller_interval );
 			cacti_log("Data query number " . $i . " starting. Host[".$data_query["host_id"]."] Query[".$data_query["snmp_query_id"]."]",false,'ACCEPTANCE');
 
 		//update reindex_time to be sure its not get picked up also by another poller process in case of problems
-		$update_reindex_time_sql = sprintf("UPDATE host_snmp_query 
+		if ($database_type === "mysql") $update_reindex_time_sql = sprintf("UPDATE host_snmp_query 
+SET reindex_time = NOW() - INTERVAL %d MINUTE + INTERVAL %d SECOND 
+WHERE host_id=%d AND snmp_query_id=%d;",
+			$acceptance_poller_interval, 2*$poller_interval,
+			$data_query['host_id'], $data_query['snmp_query_id']
+		);
+		else $update_reindex_time_sql = sprintf("UPDATE host_snmp_query 
 SET reindex_time = NOW() - INTERVAL '%d minutes' + INTERVAL '%d seconds' 
 WHERE host_id=%d AND snmp_query_id=%d;",
 			$acceptance_poller_interval, 2*$poller_interval,
