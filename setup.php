@@ -39,8 +39,8 @@ function plugin_acceptance_install() {
     api_plugin_register_hook('acceptance', 'draw_navigation_text', 'acceptance_draw_navigation_text', 'setup.php');
 	
 	# show Accepance tab
-	#api_plugin_register_hook('acceptance', 'top_header_tabs', 'acceptance_show_tab', 'setup.php');
-	#api_plugin_register_hook('acceptance', 'top_graph_header_tabs', 'acceptance_show_tab', 'setup.php');
+	api_plugin_register_hook('acceptance', 'top_header_tabs', 'acceptance_show_tab', 'setup.php');
+	api_plugin_register_hook('acceptance', 'top_graph_header_tabs', 'acceptance_show_tab', 'setup.php');
 
     # hook into the polling process
     api_plugin_register_hook('acceptance', 'poller_bottom', 'acceptance_poller_bottom', 'setup.php');
@@ -72,7 +72,7 @@ function plugin_acceptance_version() {
 function acceptance_version() {
     return array(
     	'name'		=> 'acceptance',
-		'version'	=> '0.05',
+		'version'	=> '0.06',
 		'longname'	=> 'Approve and deploy devices',
 		'author'	=> 'Thomas Casteleyn',
 		'homepage'	=> 'http://super-visions.com',
@@ -89,9 +89,23 @@ function acceptance_version() {
 function acceptance_draw_navigation_text($nav) {
 	// Displayed navigation text under the blue tabs of Cacti
 	$nav["acceptance_report.php:"]	= array("title" => "Acceptance Report", "mapping" => "index.php:", "url" => "plugins/acceptance/acceptance_report.php", "level" => "1");
-	$nav["acceptance_report.php:actions"]	= array("title" => "Acceptance Confirm", "mapping" => "index.php:", "level" => "1");
+	$nav["acceptance_report.php:actions"]	= array("title" => "Confirm", "mapping" => "index.php:,acceptance_report.php:", "level" => "2");
 	
     return $nav;
+}
+
+/**
+ * acceptance_show_tab
+ * @global array $config
+ */
+function acceptance_show_tab() {
+	global $config;
+	if (api_user_realm_auth('acceptance_report.php')) {
+		$type = 'tab';
+		if(isset($_SERVER['PHP_SELF']) && basename($_SERVER['PHP_SELF']) == 'acceptance_report.php') $type = 'red';
+
+		print '<a href="' . $config['url_path'] . 'plugins/acceptance/acceptance_report.php"><img src="' . $config['url_path'] . 'plugins/acceptance/report_'.$type.'.gif" alt="thold" align="absmiddle" border="0"></a>';
+	}
 }
 
 /**
