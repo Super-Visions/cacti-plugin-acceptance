@@ -320,10 +320,10 @@ LIMIT %d OFFSET %d;", $tree, $sort_column, $sort_direction, $per_page, ($page-1)
 			form_selectable_cell($description, $host['id'], 250);
 
 			form_selectable_cell($host['id'], $host['id']);
-			if(api_user_realm_auth('graph.php'))
+			if(api_user_realm_auth('graphs.php'))
 				form_selectable_cell('<a href="'.htmlspecialchars($config['url_path'].'graphs.php?host_id='.$host['id'].'&filter=&template_id=-1&page=1').'">'.$host['graphs'].'</a>', $host['id']);
 			else form_selectable_cell($host['graphs'], $host['id']);
-			if(api_user_realm_auth('graph.php'))
+			if(api_user_realm_auth('data_sources.php'))
 				form_selectable_cell('<a href="'.htmlspecialchars($config['url_path'].'data_sources.php?host_id='.$host['id'].'&filter=&template_id=-1&method_id=-1&page=1').'">'.$host['dss'], $host['id']);
 			else form_selectable_cell($host['dss'], $host['id']);
 			form_selectable_cell(get_colored_device_status(false, $host['status']), $host['id']);
