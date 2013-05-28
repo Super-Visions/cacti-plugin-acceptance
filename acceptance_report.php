@@ -15,7 +15,6 @@ include_once('./include/auth.php');
 include_once($config['base_path'] . '/plugins/acceptance/setup.php');
 
 
-$page = 1;
 $per_page = 40;
 $tree = (int) read_config_option('acceptance_tree');
 $acceptance_actions = array(
@@ -23,16 +22,23 @@ $acceptance_actions = array(
 	'ignore' => 'Ignore',
 	'delete' => 'Delete',
 );
+$sort_column = 'description';
+$sort_direction = 'ASC';
 $sort_options = array(
 	'description' => array('Description', 'ASC'),
 	'id' => array('ID', 'ASC'),
-	'graphs' => array('Graphs', 'ASC'),
-	'dds' => array('Data Sources', 'ASC'),
+	'graphs' => array('Graphs', 'DESC'),
+	'dss' => array('Data Sources', 'DESC'),
 	'status' => array('Status', 'ASC'),
 	'hostname' => array('Hostname', 'ASC'),
 	'host_template' => array('Template', 'ASC'),
 );
 $script_url = $config['url_path'].'plugins/acceptance/acceptance_report.php';
+
+// load saved settings
+load_current_session_value('per_page','acceptance_per_page', $per_page);
+load_current_session_value('sort_column','acceptance_sort_column', $sort_column);
+load_current_session_value('sort_direction','acceptance_sort_direction', $sort_direction);
 
 if($_SERVER['REQUEST_METHOD'] == 'POST' && $_POST['action'] == 'actions'){
 	
@@ -194,7 +200,27 @@ WHERE host.id IN(%s);", $_POST['selected_items']);
 	print '</form>';
 	
 }else{
-
+	
+	// load page and sort settings
+	$page = (int) get_request_var_request('page', 1);
+	$per_page = (int) get_request_var_request('per_page');
+	if(isset($sort_options[get_request_var_request('sort_column')])) $sort_column = get_request_var_request('sort_column');
+	if(in_array(get_request_var_request('sort_direction'), array('ASC','DESC'))) $sort_direction = get_request_var_request('sort_direction');
+	
+	// extra validation
+	if($page < 1) $page = 1;
+		
+	// calculate total rows
+	$total_rows_sql = sprintf("SELECT COUNT(*) 
+FROM host 
+JOIN graph_tree_items 
+ON(host.id = graph_tree_items.host_id) 
+WHERE 
+	graph_tree_id = %d
+	AND host.disabled <> 'on';", $tree);
+	$total_rows = db_fetch_cell($total_rows_sql);
+	
+	// retrieve hosts for current page
 	$host_sql = sprintf("SELECT host.id, description, hostname, status, host_template.name AS host_template, 
 	(SELECT COUNT(*) FROM data_local WHERE host_id=host.id) AS dss, 
 	(SELECT COUNT(*) FROM graph_local WHERE host_id=host.id) AS graphs 
@@ -205,10 +231,11 @@ JOIN graph_tree_items
 ON(host.id = graph_tree_items.host_id) 
 WHERE 
 	graph_tree_id = %d
-	AND host.disabled <> 'on'", $tree);
+	AND host.disabled <> 'on' 
+ORDER BY %s %s 
+LIMIT %d OFFSET %d;", $tree, $sort_column, $sort_direction, $per_page, ($page-1)*$per_page);
 	$hosts = db_fetch_assoc($host_sql);
-	$total_rows = count($hosts);
-
+	
 	include_once($config['include_path'] . '/top_graph_header.php');
 	
 	// filter box
@@ -271,7 +298,7 @@ WHERE
 
 
 	// display column names
-	html_header_sort_checkbox($sort_options, get_request_var_request('sort_column'), get_request_var_request('sort_direction'), false);
+	html_header_sort_checkbox($sort_options, $sort_column, $sort_direction, false);
 
 	$i = 0;
 	if ($total_rows > 0) {
