@@ -49,6 +49,11 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && $_POST['action'] == 'actions'){
 		// redirect to overview after execution. Errors can be found in logfile.
 		header('Location: '.$script_url);
 		
+		include_once($config['include_path'] . '/top_header.php');
+		
+		html_start_box('<b>' . $acceptance_actions[$_POST['drp_action']] . ' device</b>', '60%', $colors['header_panel'], '3', 'center', '');
+		print '	<tr><td class="textArea" bgcolor="#' . $colors['form_alternate1']. '">'.PHP_EOL;
+		
 		switch ($_POST['drp_action']) {
 			case 'accept':
 				
@@ -101,6 +106,12 @@ WHERE host.id IN(%s);", $selected_items);
 				
 				break;
 		}
+		
+		print '	</td></tr>'.PHP_EOL;
+				
+		html_end_box();
+		
+		include_once($config['include_path'] . '/bottom_footer.php');
 		
 		exit;
 	}
