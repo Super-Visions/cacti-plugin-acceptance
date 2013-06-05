@@ -1,0 +1,6 @@
+<Files acceptance.php>
+	Order deny,allow
+	Deny from all
+	# change next line to ip of acceptance server
+	Allow from 127.0.0.1
+</Files>

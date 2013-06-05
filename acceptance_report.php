@@ -34,6 +34,7 @@ $sort_options = array(
 	'host_template' => array('Template', 'ASC'),
 );
 $script_url = $config['url_path'].'plugins/acceptance/acceptance_report.php';
+$production_url = 'http://localhost/cacti/';
 
 // load saved settings
 load_current_session_value('per_page','acceptance_per_page', $per_page);
@@ -75,14 +76,64 @@ WHERE host.id IN(%s);", $selected_items);
 				
 				$note = 'Accepted by '.$username;
 				
+				print '<p>Pushing '.count($devices).' device(s) to production server at '.$production_url.', one moment please.</p>
+<ul>'.PHP_EOL;
+				
+				// multi handle
+				$cmh = curl_multi_init();
+
+				// loop through devices and create curl handles
+				// then add them to the multi-handle
 				foreach($devices as $device){
 					
 					// add notes
 					if(empty($device['notes'])) $device['notes'] = $note;
 					else $device['notes'] = $note.PHP_EOL.$device['notes'];
 
+					$ch = curl_init($production_url.'plugins/acceptance/acceptance.php');
+
+					curl_setopt($ch, CURLOPT_POST, 1);
+					curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array('devices' => array($device))));
+					curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+					
+					curl_multi_add_handle($cmh, $ch);
 				}
 				
+				// execute the handles
+				$running = null;
+				$checked_ids = array();
+				do {
+					// running request
+					curl_multi_exec($cmh, $running);
+					
+					// there are finished requests
+					while($info = curl_multi_info_read($cmh)) {
+						
+						// get response
+						$result = curl_multi_getcontent($info['handle']);
+						if(preg_match_all('/^(\d+): Host\[\d+\] (.+) \(.+\) (updated|created)$/m', $result, $matches)){
+							foreach($matches[1] as $index => $id){
+								$checked_ids[] = $id;
+								print '	<li>'.$matches[2][$index].' '.$matches[3][$index].'</li>'.PHP_EOL;
+							}
+						}else{
+							print '	<li><span class="textError">Something went wrong.</span></li>'.PHP_EOl;
+						}
+						
+						// remove handle
+						curl_multi_remove_handle($cmh, $info['handle']);
+					}
+					
+					flush();
+				} while($running > 0 && !usleep(25000));
+
+				// all done
+				curl_multi_close($cmh);
+				
+				$selected_items = implode(',',$checked_ids); 
+				
+				print '</ul>'.PHP_EOL;
+
 			case 'ignore':
 				
 				// disable devices
