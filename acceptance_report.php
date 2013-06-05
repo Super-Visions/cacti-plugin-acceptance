@@ -44,20 +44,24 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && $_POST['action'] == 'actions'){
 	
 	// perform action after verify
 	if(!empty($_POST['selected_items']) && preg_match('#^([0-9]+,)*[0-9]+$#', $_POST['selected_items'])){
+		$selected_items = $_POST['selected_items'];
+		
+		// redirect to overview after execution. Errors can be found in logfile.
+		header('Location: '.$script_url);
 		
 		switch ($_POST['drp_action']) {
 			case 'accept':
 				
-				$devices_sql = sprintf("SELECT host_template.name, description, 
+				// find all device information
+				$devices_sql = sprintf("SELECT host.id, host_template.name, description, 
 	hostname, snmp_community, snmp_version, snmp_username, snmp_password, 
 	snmp_port, snmp_timeout, disabled, availability_method, ping_method, 
 	ping_port, ping_timeout, ping_retries, notes, snmp_auth_protocol, 
-	snmp_priv_passphrase, snmp_priv_protocol, snmp_context, max_oids 
+	snmp_priv_passphrase, snmp_priv_protocol, snmp_context, max_oids, device_threads 
 FROM host 
 LEFT JOIN host_template 
 ON(host_template_id = host_template.id) 
-WHERE host.id IN(%s);", $_POST['selected_items']);
-				
+WHERE host.id IN(%s);", $selected_items);
 				$devices = db_fetch_assoc($devices_sql);
 				
 				foreach($devices as $device){
@@ -67,11 +71,11 @@ WHERE host.id IN(%s);", $_POST['selected_items']);
 			case 'ignore':
 				
 				// disable devices
-				db_execute(sprintf("UPDATE host SET disabled='on' WHERE id IN(%s);", $_POST['selected_items']));
+				db_execute(sprintf("UPDATE host SET disabled='on' WHERE id IN(%s);", $selected_items));
 
 				// update poller cache
-				db_execute(sprintf('DELETE FROM poller_item WHERE host_id IN(%s);', $_POST['selected_items']));
-				db_execute(sprintf('DELETE FROM poller_reindex WHERE host_id IN(%s);', $_POST['selected_items']));
+				db_execute(sprintf('DELETE FROM poller_item WHERE host_id IN(%s);', $selected_items));
+				db_execute(sprintf('DELETE FROM poller_reindex WHERE host_id IN(%s);', $selected_items));
 				
 				break;
 			
@@ -81,24 +85,23 @@ WHERE host.id IN(%s);", $_POST['selected_items']);
 				include_once($config["base_path"] . '/lib/api_device.php');
 				
 				// delete data sources
-				$device_ds_sql = sprintf('SELECT id FROM data_local WHERE host_id IN(%s);', $_POST['selected_items']);
+				$device_ds_sql = sprintf('SELECT id FROM data_local WHERE host_id IN(%s);', $selected_items);
 				$device_ds_ids = array();
 				foreach(db_fetch_assoc($device_ds_sql) as $ds) $device_ds_ids[] = $ds['id'];
 				api_data_source_remove_multi($device_ds_ids);
 				
 				// delete graphs
-				$device_graph_sql = sprintf('SELECT id FROM graph_local WHERE host_id IN(%s);', $_POST['selected_items']);
+				$device_graph_sql = sprintf('SELECT id FROM graph_local WHERE host_id IN(%s);', $selected_items);
 				$device_graph_ids = array();
 				foreach(db_fetch_assoc($device_graph_sql) as $graph) $device_graph_ids[] = $graph['id'];
 				api_graph_remove_multi($device_graph_ids);
 				
 				// delete the device
-				api_device_remove_multi(explode(',', $_POST['selected_items']));
+				api_device_remove_multi(explode(',', $selected_items));
 				
 				break;
 		}
 		
-		header('Location: '.$script_url);
 		exit;
 	}
 	
