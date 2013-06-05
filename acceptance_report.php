@@ -69,8 +69,18 @@ ON(host_template_id = host_template.id)
 WHERE host.id IN(%s);", $selected_items);
 				$devices = db_fetch_assoc($devices_sql);
 				
+				// find username to add in notes
+				$username_sql = sprintf("SELECT IFNULL(NULLIF(full_name,''),username) FROM user_auth WHERE id=%d;", $_SESSION["sess_user_id"]);
+				$username = db_fetch_cell($username_sql);
+				
+				$note = 'Accepted by '.$username;
+				
 				foreach($devices as $device){
-					//fputcsv($file, $device);
+					
+					// add notes
+					if(empty($device['notes'])) $device['notes'] = $note;
+					else $device['notes'] = $note.PHP_EOL.$device['notes'];
+
 				}
 				
 			case 'ignore':
