@@ -165,6 +165,13 @@ function acceptance_config_settings() {
             "default" => 1,
             "array" => $trees,
         ),
+		"acceptance_production_url" => array(
+			"friendly_name" => "Production Cacti Server URL",
+			"description" => "Provide the Cacti base URL of the production server to where you want to push devices.",
+			"method" => "textbox",
+			"default" => "http://localhost/cacti/",
+			"max_length" => 255,
+		),
         "acceptance_log_verbosity" => array(
             "friendly_name" => "Logging Level for Acceptance",
             "description" => "What level of detail do you want sent to the log file.",

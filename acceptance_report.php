@@ -34,7 +34,7 @@ $sort_options = array(
 	'host_template' => array('Template', 'ASC'),
 );
 $script_url = $config['url_path'].'plugins/acceptance/acceptance_report.php';
-$production_url = 'http://localhost/cacti/';
+$production_url = read_config_option('acceptance_production_url');
 
 // load saved settings
 load_current_session_value('per_page','acceptance_per_page', $per_page);
@@ -74,7 +74,7 @@ WHERE host.id IN(%s);", $selected_items);
 				$username_sql = sprintf("SELECT IFNULL(NULLIF(full_name,''),username) FROM user_auth WHERE id=%d;", $_SESSION["sess_user_id"]);
 				$username = db_fetch_cell($username_sql);
 				
-				$note = 'Accepted by '.$username;
+				$note = 'Accepted by '.$username.' on '.date('Y-m-d H:i');
 				
 				print '<p>Pushing '.count($devices).' device(s) to production server at '.$production_url.', one moment please.</p>
 <ul>'.PHP_EOL;
