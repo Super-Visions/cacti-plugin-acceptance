@@ -22,6 +22,7 @@ define('ACCEPTANCE_DEBUG', read_config_option("acceptance_log_verbosity"), true)
 define('ACCEPTANCE_MAX_DISPLAY_PAGES', 21);
 
 # non-gw-cacti compatibility
+global $database_idquote;
 if(empty($database_idquote)) $database_idquote = '`';
 
 /**
