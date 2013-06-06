@@ -117,7 +117,9 @@ WHERE host.id IN(%s);", $selected_items);
 								print '	<li>'.$matches[2][$index].' '.$matches[3][$index].'</li>'.PHP_EOL;
 							}
 						}else{
-							print '	<li><span class="textError">Something went wrong.</span></li>'.PHP_EOl;
+							print '	<li><span class="textError">Something went wrong.</span></li>'.PHP_EOL;
+							//TODO: process list of devices that could not be added.
+							cacti_log('ERROR: Invalid response from production server.',false,'ACCEPTANCE');
 						}
 						
 						// remove handle
@@ -130,10 +132,11 @@ WHERE host.id IN(%s);", $selected_items);
 				// all done
 				curl_multi_close($cmh);
 				
-				$selected_items = implode(',',$checked_ids); 
-				
 				print '</ul>'.PHP_EOL;
 
+				if(empty($checked_ids)) break;
+				else $selected_items = implode(',',$checked_ids); 
+				
 			case 'ignore':
 				
 				// disable devices
