@@ -330,9 +330,15 @@ ORDER BY num DESC;";
 FROM data_local 
 JOIN data_template_data 
 ON( local_data_id=data_local.id ) 
-WHERE host_id=".$data['host_id']." AND snmp_query_id=".$data['snmp_query_id']." 
+LEFT JOIN data_input_data 
+ON( data_template_data_id = data_template_data.id ) 
+LEFT JOIN data_input_fields 
+ON( data_input_field_id = data_input_fields.id ) 
+WHERE type_code = 'output_type' 
+AND host_id=".$data['host_id']." AND snmp_query_id=".$data['snmp_query_id']." 
 AND data_local.data_template_id=".$ds['data_template_id']." AND snmp_index='".$ds['snmp_index']."' 
-ORDER BY id OFFSET 1;";
+ORDER BY data_input_data.value DESC, data_local.id ASC 
+LIMIT ".$ds['num']." OFFSET 1;";
 
 			foreach(db_fetch_assoc($duplicate_ds_id_sql) as $dds){
 				$ds_ids[] = $dds['id'];
