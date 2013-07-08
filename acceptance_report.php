@@ -120,6 +120,12 @@ WHERE host.id IN(%s);", $selected_items);
 							print '	<li><span class="textError">Something went wrong.</span></li>'.PHP_EOL;
 							//TODO: process list of devices that could not be added.
 							cacti_log('ERROR: Invalid response from production server.',false,'ACCEPTANCE');
+							
+							if(ACCEPTANCE_DEBUG >= POLLER_VERBOSITY_DEBUG){
+								$debugfile = tempnam();
+								file_put_contents($debugfile, $result);
+								cacti_log('DEBUG: Response can be found in '.$debugfile,false,'ACCEPTANCE');
+							}
 						}
 						
 						// remove handle
