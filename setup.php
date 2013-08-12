@@ -79,9 +79,8 @@ function acceptance_version() {
 		'version'	=> '1.0.0',
 		'longname'	=> 'Approve and deploy devices',
 		'author'	=> 'Thomas Casteleyn',
-		'homepage'	=> 'http://super-visions.com',
 		'email'		=> 'thomas.casteleyn@super-visions.com',
-		'url'		=> 'https://github.com/Super-Visions/cacti-plugin-acceptance'
+		'homepage'	=> 'https://github.com/Super-Visions/cacti-plugin-acceptance'
     );
 }
 
