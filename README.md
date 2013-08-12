@@ -10,9 +10,9 @@ On large installation it is useful to have a separate Cacti instance where you c
 
   * Acceptance page with some information like number of graphs/data sources, host template, hostname and host status.
   * 1-click approve and deploy devices to production server.
-  * Ignore devices ( = set Enabled to false )	
-  * Optional: Remove data sources linked to indexes that don't exist anymore
-  * Optional: Remove data sources that seem to be duplicates from existing data sources
+  * Ignore devices ( = set Enabled to false ).
+  * Optional: Remove data sources linked to indexes that don't exist anymore (on re-index).
+  * Optional: Remove data sources that seem to be duplicates from existing data sources (on re-index).
   * Optional: Re-run data queries that have "Uptime Goes Backwards" as re-index method at specified interval.
 
 ## Prerequisites
