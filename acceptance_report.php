@@ -33,13 +33,35 @@ $sort_options = array(
 	'hostname' => array('Hostname', 'ASC'),
 	'host_template' => array('Template', 'ASC'),
 );
+$host_template_id = -1;
+$host_status = -1;
 $script_url = $config['url_path'].'plugins/acceptance/acceptance_report.php';
 $production_url = read_config_option('acceptance_production_url');
+
+// clear custom settings
+if(!empty(get_request_var('button_clear_x'))){
+	kill_session_var('acceptance_per_page');
+	kill_session_var('acceptance_sort_column');
+	kill_session_var('acceptance_sort_direction');
+	kill_session_var('acceptance_host_template_id');
+	kill_session_var('acceptance_host_status');
+	kill_session_var('acceptance_filter');
+	
+	unset($_REQUEST['per_page']);
+	unset($_REQUEST['sort_column']);
+	unset($_REQUEST['sort_direction']);
+	unset($_REQUEST['host_template_id']);
+	unset($_REQUEST['host_status']);
+	unset($_REQUEST['filter']);
+}
 
 // load saved settings
 load_current_session_value('per_page','acceptance_per_page', $per_page);
 load_current_session_value('sort_column','acceptance_sort_column', $sort_column);
 load_current_session_value('sort_direction','acceptance_sort_direction', $sort_direction);
+load_current_session_value('host_template_id', 'acceptance_host_template_id', $host_template_id);
+load_current_session_value('host_status', 'acceptance_host_status', $host_status);
+load_current_session_value('filter', 'acceptance_filter', '');
 
 if($_SERVER['REQUEST_METHOD'] == 'POST' && $_POST['action'] == 'actions'){
 	
@@ -290,10 +312,21 @@ WHERE host.id IN(%s);", $selected_items);
 	$per_page = (int) get_request_var_request('per_page');
 	if(isset($sort_options[get_request_var_request('sort_column')])) $sort_column = get_request_var_request('sort_column');
 	if(in_array(get_request_var_request('sort_direction'), array('ASC','DESC'))) $sort_direction = get_request_var_request('sort_direction');
+	$host_template_id = (int) get_request_var_request('host_template_id');
+	$host_status = (int) get_request_var_request('host_status');
+	$text_filter = get_request_var_request('filter');
 	
 	// extra validation
 	if($page < 1) $page = 1;
-		
+	if(preg_match('#[\;\)\(\,\\\/\'\"]*#', $text_filter)) $text_filter = '';
+	
+	// filter
+	$filter = '';
+	if($host_template_id > -1) $filter .= sprintf('	AND host.host_template_id = %d ', $host_template_id).PHP_EOL;
+	if($host_status > -1) $filter .= sprintf('	AND host.status = %d ', $host_status).PHP_EOL;
+	if($host_status == -2) $filter .= ' AND host.status != 3 '.PHP_EOL; 
+	if(strlen($text_filter)) $filter .= sprintf("	AND (host.description LIKE '%%%1\$s%%' OR host.hostname LIKE '%%%1\$s%%') ", $text_filter).PHP_EOL;
+	
 	// calculate total rows
 	$total_rows_sql = sprintf("SELECT COUNT(*) 
 FROM host 
@@ -301,7 +334,8 @@ JOIN graph_tree_items
 ON(host.id = graph_tree_items.host_id) 
 WHERE 
 	graph_tree_id = %d
-	AND host.disabled <> 'on';", $tree);
+	AND host.disabled <> 'on'
+%s;", $tree, $filter);
 	$total_rows = db_fetch_cell($total_rows_sql);
 	
 	// retrieve hosts for current page
@@ -316,9 +350,13 @@ ON(host.id = graph_tree_items.host_id)
 WHERE 
 	graph_tree_id = %d
 	AND host.disabled <> 'on' 
+%s
 ORDER BY %s %s 
-LIMIT %d OFFSET %d;", $tree, $sort_column, $sort_direction, $per_page, ($page-1)*$per_page);
+LIMIT %d OFFSET %d;", $tree, $filter, $sort_column, $sort_direction, $per_page, ($page-1)*$per_page);
 	$hosts = db_fetch_assoc($host_sql);
+	
+	// get list of host templates
+	$host_templates = db_fetch_assoc("SELECT id, name FROM host_template ORDER BY name;");
 	
 	include_once($config['include_path'] . '/top_graph_header.php');
 	
@@ -329,9 +367,33 @@ LIMIT %d OFFSET %d;", $tree, $sort_column, $sort_direction, $per_page, ($page-1)
 <tr bgcolor="#<?php print $colors["panel"];?>" class="noprint">
 	<td class="noprint">
 	<form style="padding:0px;margin:0px;" name="form" method="get" action="<?php print $script_url;?>">
-		<input type="submit" value="Go" title="Set/Refresh Filters">
-		<input type="submit" name="button_clear_x" value="Clear" title="Reset fields to defaults">
-		<input type="submit" name="button_export_x" value="Export" title="Export to a file">		
+		Template:
+		<select name="host_template_id">
+			<?php
+			
+			print '<option value="-1"'.($host_template_id == -1 ? ' selected':'').'>Any</option>'.PHP_EOL;
+			print '<option value="0"'.($host_template_id == 0 ? ' selected':'').'>None</option>'.PHP_EOL;
+			
+			foreach($host_templates as $template){
+				print '<option value="'. $template['id'] .'"'.($template['id'] == $host_template_id ? ' selected':'').'>'.$template['name'].'</option>'.PHP_EOL;
+			}
+			
+			?>
+		</select>
+		Status:
+		<select name="host_status">
+			<option value="-1"<?php print $host_status == -1 ? ' selected':'';?>>Any</option>
+			<option value="-2"<?php print $host_status == -2 ? ' selected':'';?>>Not Up</option>
+			<option value="3"<?php print $host_status == 3 ? ' selected':'';?>>Up</option>
+			<option value="1"<?php print $host_status == 1 ? ' selected':'';?>>Down</option>
+			<option value="2"<?php print $host_status == 2 ? ' selected':'';?>>Recovering</option>
+			<option value="0"<?php print $host_status == 0 ? ' selected':'';?>>Unknown</option>
+		</select>
+		Search:
+		<input type="text" name="filter" value="<?php print $text_filter;?>" />
+		<input type="submit" value="Go" title="Set/Refresh Filters" />
+		<input type="submit" name="button_clear_x" value="Clear" title="Reset fields to defaults" />
+		<input type="submit" name="button_export_x" value="Export" title="Export to a file" />		
 	</form>
 	</td>
 </tr>
