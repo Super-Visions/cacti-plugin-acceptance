@@ -38,6 +38,23 @@ $host_status = -1;
 $script_url = $config['url_path'].'plugins/acceptance/acceptance_report.php';
 $production_url = read_config_option('acceptance_production_url');
 
+// clear custom settings
+if(!empty(get_request_var('button_clear_x'))){
+	kill_session_var('acceptance_per_page');
+	kill_session_var('acceptance_sort_column');
+	kill_session_var('acceptance_sort_direction');
+	kill_session_var('acceptance_host_template_id');
+	kill_session_var('acceptance_host_status');
+	kill_session_var('acceptance_filter');
+	
+	unset($_REQUEST['per_page']);
+	unset($_REQUEST['sort_column']);
+	unset($_REQUEST['sort_direction']);
+	unset($_REQUEST['host_template_id']);
+	unset($_REQUEST['host_status']);
+	unset($_REQUEST['filter']);
+}
+
 // load saved settings
 load_current_session_value('per_page','acceptance_per_page', $per_page);
 load_current_session_value('sort_column','acceptance_sort_column', $sort_column);
