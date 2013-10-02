@@ -9,6 +9,7 @@ On large installation it is useful to have a separate Cacti instance where you c
 ## Features
 
   * Acceptance page with some information like number of graphs/data sources, host template, hostname and host status.
+  * Filter devices on Acceptance report page.
   * 1-click approve and deploy devices to production server.
   * Ignore devices ( = set Enabled to false ).
   * Optional: Remove data sources linked to indexes that don't exist anymore (on re-index).
