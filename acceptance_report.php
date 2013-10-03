@@ -39,7 +39,7 @@ $script_url = $config['url_path'].'plugins/acceptance/acceptance_report.php';
 $production_url = read_config_option('acceptance_production_url');
 
 // clear custom settings
-if(!empty(get_request_var('button_clear_x'))){
+if(isset($_GET['button_clear_x'])){
 	kill_session_var('acceptance_per_page');
 	kill_session_var('acceptance_sort_column');
 	kill_session_var('acceptance_sort_direction');
