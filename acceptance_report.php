@@ -318,7 +318,7 @@ WHERE host.id IN(%s);", $selected_items);
 	
 	// extra validation
 	if($page < 1) $page = 1;
-	if(preg_match('#[\;\)\(\,\\\/\'\"]*#', $text_filter)) $text_filter = '';
+	if(preg_match('#[\;\)\(\,\\\/\'\"]+#', $text_filter)) $text_filter = '';
 	
 	// filter
 	$filter = '';
