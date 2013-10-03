@@ -12,6 +12,7 @@ You can click trough on links to see a list of graphs and a list of data sources
 
   * Acceptance page with some information like number of graphs/data sources, host template, hostname and host status.
   * Filter devices on Acceptance report page.
+  * CSV export of devices ready to be accepted.
   * 1-click approve and deploy devices to production server.
   * Ignore devices ( = set Enabled to false ).
   * Additional: Remove data sources linked to indexes that don't exist anymore (on re-index).
