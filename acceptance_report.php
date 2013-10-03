@@ -486,6 +486,7 @@ LIMIT %d OFFSET %d;", $tree, $filter, $sort_column, $sort_direction, $per_page, 
 	html_header_sort_checkbox($sort_options, $sort_column, $sort_direction, false);
 
 	$i = 0;
+	$preg_match = '/'.str_replace(array('%','_'), array('.*','.'), preg_quote($text_filter)).'/i';
 	if ($total_rows > 0) {
 		foreach ($hosts as $host) {
 			form_alternate_row_color($colors['alternate'], $colors['light'], $i, 'line' . $host['id']); $i++;
@@ -501,7 +502,7 @@ LIMIT %d OFFSET %d;", $tree, $filter, $sort_column, $sort_direction, $per_page, 
 				$description .= '<img src="'.$config['url_path'].'plugins/thold/images/view_graphs.gif" border="0" alt="View Graphs" title="View Graphs" />';
 				$description .= '</a> ';
 			}
-			$description .= htmlspecialchars($host['description']);
+			$description .= preg_replace($preg_match, '<span style="background-color: #F8D93D;">$0</span>', htmlspecialchars($host['description']));
 			form_selectable_cell($description, $host['id'], 250);
 
 			form_selectable_cell($host['id'], $host['id']);
@@ -512,7 +513,7 @@ LIMIT %d OFFSET %d;", $tree, $filter, $sort_column, $sort_direction, $per_page, 
 				form_selectable_cell('<a href="'.htmlspecialchars($config['url_path'].'data_sources.php?host_id='.$host['id'].'&filter=&template_id=-1&method_id=-1&page=1').'">'.$host['dss'], $host['id']);
 			else form_selectable_cell($host['dss'], $host['id']);
 			form_selectable_cell(get_colored_device_status(false, $host['status']), $host['id']);
-			form_selectable_cell(htmlspecialchars($host['hostname']), $host['id']);
+			form_selectable_cell(preg_replace($preg_match, '<span style="background-color: #F8D93D;">$0</span>', htmlspecialchars($host['hostname'])), $host['id']);
 			form_selectable_cell(htmlspecialchars($host['host_template']), $host['id']);
 			form_checkbox_cell($host['description'], $host['id']);
 			form_end_row();
