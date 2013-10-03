@@ -165,6 +165,10 @@ WHERE host.id IN(%s);", $selected_items);
 				if(empty($checked_ids)) break;
 				else $selected_items = implode(',',$checked_ids); 
 				
+				// update notes field
+				db_execute(sprintf("UPDATE host SET notes=CONAT(notes,'%s') WHERE id IN(%s) AND notes != '';", PHP_EOL.$note, $selected_items));
+				db_execute(sprintf("UPDATE host SET notes='%s' WHERE id IN(%s) AND notes = '';", $note, $selected_items));
+				
 			case 'ignore':
 				
 				// disable devices
