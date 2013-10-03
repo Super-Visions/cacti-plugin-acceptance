@@ -39,7 +39,7 @@ $script_url = $config['url_path'].'plugins/acceptance/acceptance_report.php';
 $production_url = read_config_option('acceptance_production_url');
 
 // clear custom settings
-if(!empty(get_request_var('button_clear_x'))){
+if(isset($_GET['button_clear_x'])){
 	kill_session_var('acceptance_per_page');
 	kill_session_var('acceptance_sort_column');
 	kill_session_var('acceptance_sort_direction');
@@ -164,6 +164,10 @@ WHERE host.id IN(%s);", $selected_items);
 
 				if(empty($checked_ids)) break;
 				else $selected_items = implode(',',$checked_ids); 
+				
+				// update notes field
+				db_execute(sprintf("UPDATE host SET notes=CONAT(notes,'%s') WHERE id IN(%s) AND notes != '';", PHP_EOL.$note, $selected_items));
+				db_execute(sprintf("UPDATE host SET notes='%s' WHERE id IN(%s) AND notes = '';", $note, $selected_items));
 				
 			case 'ignore':
 				
@@ -318,7 +322,7 @@ WHERE host.id IN(%s);", $selected_items);
 	
 	// extra validation
 	if($page < 1) $page = 1;
-	if(preg_match('#[\;\)\(\,\\\/\'\"]*#', $text_filter)) $text_filter = '';
+	if(preg_match('#[\;\)\(\,\\\/\'\"]+#', $text_filter)) $text_filter = '';
 	
 	// filter
 	$filter = '';
@@ -326,6 +330,41 @@ WHERE host.id IN(%s);", $selected_items);
 	if($host_status > -1) $filter .= sprintf('	AND host.status = %d ', $host_status).PHP_EOL;
 	if($host_status == -2) $filter .= ' AND host.status != 3 '.PHP_EOL; 
 	if(strlen($text_filter)) $filter .= sprintf("	AND (host.description LIKE '%%%1\$s%%' OR host.hostname LIKE '%%%1\$s%%') ", $text_filter).PHP_EOL;
+	
+	// export button clicked
+	if(isset($_GET['button_export_x'])){
+		
+		// find all device information
+		$devices_sql = sprintf("SELECT host.id, host_template.name host_template, description, 
+	hostname, snmp_community, snmp_version, snmp_username, snmp_password, 
+	snmp_port, snmp_timeout, disabled, availability_method, ping_method, 
+	ping_port, ping_timeout, ping_retries, notes, snmp_auth_protocol, 
+	snmp_priv_passphrase, snmp_priv_protocol, snmp_context, max_oids, device_threads 
+FROM host 
+LEFT JOIN host_template 
+ON(host.host_template_id = host_template.id) 
+JOIN graph_tree_items 
+ON(host.id = graph_tree_items.host_id) 
+WHERE 
+	graph_tree_id = %d
+	AND host.disabled <> 'on' 
+%s;", $tree, $filter);
+		$devices = db_fetch_assoc($devices_sql);
+		
+		if(!empty($devices)){
+			$output = fopen('php://output', 'w');
+
+			// send headers
+			header('Content-Type: text/csv' );
+			header('Content-Disposition: attachment;filename=acceptance.csv');
+			
+			// output csv data
+			fputcsv($output, array_keys(reset($devices)));
+			foreach($devices as $device) fputcsv ($output, $device);
+
+			exit;
+		}
+	}
 	
 	// calculate total rows
 	$total_rows_sql = sprintf("SELECT COUNT(*) 
@@ -447,6 +486,7 @@ LIMIT %d OFFSET %d;", $tree, $filter, $sort_column, $sort_direction, $per_page, 
 	html_header_sort_checkbox($sort_options, $sort_column, $sort_direction, false);
 
 	$i = 0;
+	$preg_match = '/'.str_replace(array('%','_'), array('.*','.'), preg_quote($text_filter)).'/i';
 	if ($total_rows > 0) {
 		foreach ($hosts as $host) {
 			form_alternate_row_color($colors['alternate'], $colors['light'], $i, 'line' . $host['id']); $i++;
@@ -462,7 +502,7 @@ LIMIT %d OFFSET %d;", $tree, $filter, $sort_column, $sort_direction, $per_page, 
 				$description .= '<img src="'.$config['url_path'].'plugins/thold/images/view_graphs.gif" border="0" alt="View Graphs" title="View Graphs" />';
 				$description .= '</a> ';
 			}
-			$description .= htmlspecialchars($host['description']);
+			$description .= preg_replace($preg_match, '<span style="background-color: #F8D93D;">$0</span>', htmlspecialchars($host['description']));
 			form_selectable_cell($description, $host['id'], 250);
 
 			form_selectable_cell($host['id'], $host['id']);
@@ -473,7 +513,7 @@ LIMIT %d OFFSET %d;", $tree, $filter, $sort_column, $sort_direction, $per_page, 
 				form_selectable_cell('<a href="'.htmlspecialchars($config['url_path'].'data_sources.php?host_id='.$host['id'].'&filter=&template_id=-1&method_id=-1&page=1').'">'.$host['dss'], $host['id']);
 			else form_selectable_cell($host['dss'], $host['id']);
 			form_selectable_cell(get_colored_device_status(false, $host['status']), $host['id']);
-			form_selectable_cell(htmlspecialchars($host['hostname']), $host['id']);
+			form_selectable_cell(preg_replace($preg_match, '<span style="background-color: #F8D93D;">$0</span>', htmlspecialchars($host['hostname'])), $host['id']);
 			form_selectable_cell(htmlspecialchars($host['host_template']), $host['id']);
 			form_checkbox_cell($host['description'], $host['id']);
 			form_end_row();
