@@ -331,6 +331,41 @@ WHERE host.id IN(%s);", $selected_items);
 	if($host_status == -2) $filter .= ' AND host.status != 3 '.PHP_EOL; 
 	if(strlen($text_filter)) $filter .= sprintf("	AND (host.description LIKE '%%%1\$s%%' OR host.hostname LIKE '%%%1\$s%%') ", $text_filter).PHP_EOL;
 	
+	// export button clicked
+	if(isset($_GET['button_export_x'])){
+		
+		// find all device information
+		$devices_sql = sprintf("SELECT host.id, host_template.name host_template, description, 
+	hostname, snmp_community, snmp_version, snmp_username, snmp_password, 
+	snmp_port, snmp_timeout, disabled, availability_method, ping_method, 
+	ping_port, ping_timeout, ping_retries, notes, snmp_auth_protocol, 
+	snmp_priv_passphrase, snmp_priv_protocol, snmp_context, max_oids, device_threads 
+FROM host 
+LEFT JOIN host_template 
+ON(host.host_template_id = host_template.id) 
+JOIN graph_tree_items 
+ON(host.id = graph_tree_items.host_id) 
+WHERE 
+	graph_tree_id = %d
+	AND host.disabled <> 'on' 
+%s;", $tree, $filter);
+		$devices = db_fetch_assoc($devices_sql);
+		
+		if(!empty($devices)){
+			$output = fopen('php://output', 'w');
+
+			// send headers
+			header('Content-Type: text/csv' );
+			header('Content-Disposition: attachment;filename=acceptance.csv');
+			
+			// output csv data
+			fputcsv($output, array_keys(reset($devices)));
+			foreach($devices as $device) fputcsv ($output, $device);
+
+			exit;
+		}
+	}
+	
 	// calculate total rows
 	$total_rows_sql = sprintf("SELECT COUNT(*) 
 FROM host 
