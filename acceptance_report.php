@@ -110,7 +110,7 @@ WHERE host.id IN(%s);", $selected_items);
 					
 					// add notes
 					if(empty($device['notes'])) $device['notes'] = $note;
-					else $device['notes'] = $note.PHP_EOL.$device['notes'];
+					else $device['notes'] .= PHP_EOL.$note;
 
 					$ch = curl_init($production_url.'plugins/acceptance/acceptance.php');
 
@@ -166,7 +166,7 @@ WHERE host.id IN(%s);", $selected_items);
 				else $selected_items = implode(',',$checked_ids); 
 				
 				// update notes field
-				db_execute(sprintf("UPDATE host SET notes=CONCAT(notes,'%s') WHERE id IN(%s) AND notes != '';", PHP_EOL.$note, $selected_items));
+				db_execute(sprintf("UPDATE host SET notes=CONCAT(notes,'\\n','%s') WHERE id IN(%s) AND notes != '';", $note, $selected_items));
 				db_execute(sprintf("UPDATE host SET notes='%s' WHERE id IN(%s) AND notes = '';", $note, $selected_items));
 				
 			case 'ignore':
