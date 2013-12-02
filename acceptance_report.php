@@ -214,7 +214,7 @@ WHERE host.id IN(%s);", $selected_items);
 	
 	include_once($config['include_path'] . '/top_header.php');
 	
-	print '<form name="acceptance_action" action="'.$script_url.'" method="post">';
+	print '<form name="acceptance_action" action="'.$script_url.'" method="post" onSubmit="this.getElementById(\'submit_acceptance_action\').disabled=true">';
 
 	html_start_box('<b>' . $acceptance_actions[$_POST['drp_action']] . ' device</b>', '60%', $colors['header_panel'], '3', 'center', '');
 	
@@ -290,7 +290,7 @@ WHERE host.id IN(%s);", $selected_items);
 				break;
 		}
 		
-		$save_html = '<input type="button" value="Return" onClick="window.history.back()">&nbsp;<input type="submit" value="Apply" title="Apply requested action">';
+		$save_html = '<input type="button" value="Return" onClick="window.history.back()">&nbsp;<input type="submit" id="submit_acceptance_action" value="Apply" title="Apply requested action">';
 	}else{
 		print '<tr><td bgcolor="#' . $colors['form_alternate1']. '"><span class="textError">You must select at least one Rule.</span></td></tr>';
 		$save_html = '<input type="button" value="Return" onClick="window.history.back()">';
