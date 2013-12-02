@@ -76,7 +76,7 @@ function plugin_acceptance_version() {
 function acceptance_version() {
     return array(
     	'name'		=> 'acceptance',
-		'version'	=> '1.1.0',
+		'version'	=> '1.1.1',
 		'longname'	=> 'Approve and deploy devices',
 		'author'	=> 'Thomas Casteleyn',
 		'email'		=> 'thomas.casteleyn@super-visions.com',
